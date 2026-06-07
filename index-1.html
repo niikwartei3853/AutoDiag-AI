@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoDiag AI — Vehicle Diagnostics</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0c0c0c;
+      --surface: #161616;
+      --surface2: #1f1f1f;
+      --border: #2c2c2c;
+      --accent: #f97316;
+      --text: #e5e5e5;
+      --muted: #555;
+      --red: #ef4444;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo {
+      background: var(--accent);
+      border-radius: 6px;
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .header-title { font-weight: bold; font-size: 17px; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; }
+    .header-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.12em; margin-top: 2px; }
+    #resetBtn {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 14px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      display: none;
+    }
+    #resetBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Main */
+    .main { max-width: 820px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 22px; }
+
+    /* Section label */
+    .section-label {
+      font-size: 10px; letter-spacing: 0.18em; color: var(--muted);
+      text-transform: uppercase; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* API Key field */
+    .api-key-box {
+      background: #0d0d1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 4px;
+      padding: 14px 16px;
+    }
+    .api-key-box label { font-size: 11px; color: #8888cc; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
+    .api-key-box input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid #2a2a4a;
+      border-radius: 3px;
+      color: var(--text);
+      font-family: monospace;
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    .api-key-box input:focus { border-color: #8888cc; }
+    .api-key-note { font-size: 10px; color: #444; margin-top: 6px; }
+
+    /* Dropzone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 30px 16px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--surface);
+      transition: all 0.2s;
+    }
+    .dropzone.drag-over { border-color: var(--accent); background: #1a0a00; }
+    .dropzone:hover { border-color: #444; }
+    .drop-icon { font-size: 34px; margin-bottom: 10px; }
+    .drop-text { font-size: 13px; margin-bottom: 5px; }
+    .drop-sub { font-size: 11px; color: var(--muted); }
+    #fileInput { display: none; }
+
+    /* Preview grid */
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .preview-card {
+      position: relative;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      aspect-ratio: 4/3;
+      background: var(--surface2);
+    }
+    .preview-card img, .preview-card video { width: 100%; height: 100%; object-fit: cover; }
+    .vid-badge {
+      position: absolute; top: 4px; left: 4px;
+      background: var(--accent); color: #000;
+      font-size: 8px; padding: 2px 5px; border-radius: 2px; font-weight: bold;
+    }
+    .remove-btn {
+      position: absolute; top: 4px; right: 4px;
+      background: rgba(0,0,0,0.75); border: none; color: #fff;
+      width: 20px; height: 20px; border-radius: 50%;
+      cursor: pointer; font-size: 14px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Textarea */
+    textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: monospace;
+      font-size: 13px;
+      padding: 12px 14px;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: var(--accent); }
+
+    /* Analyze button */
+    #analyzeBtn {
+      width: 100%;
+      padding: 15px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      font-weight: bold;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    #analyzeBtn:hover:not(:disabled) { opacity: 0.88; }
+    #analyzeBtn:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
+
+    /* Status hint */
+    .hint { text-align: center; font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+    /* Loading */
+    .loading-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 28px;
+      text-align: center;
+      display: none;
+    }
+    .spinner { font-size: 28px; display: inline-block; animation: spin 1.2s linear infinite; margin-bottom: 12px; }
+    .loading-text { font-size: 12px; color: var(--muted); letter-spacing: 0.15em; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error box */
+    .error-box {
+      background: #1a0505;
+      border: 1px solid var(--red);
+      border-radius: 4px;
+      padding: 14px 18px;
+      display: none;
+    }
+    .error-title { color: var(--red); font-size: 12px; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .error-msg { color: #cc8888; font-size: 13px; }
+
+    /* Result */
+    .result-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      display: none;
+    }
+    .result-header {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .result-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .result-label { font-size: 11px; letter-spacing: 0.15em; font-weight: bold; }
+    .result-content {
+      padding: 20px 18px;
+      font-size: 13px;
+      line-height: 1.85;
+      white-space: pre-wrap;
+      color: var(--text);
+    }
+
+    /* Disclaimer */
+    .disclaimer { font-size: 10px; color: #2a2a2a; text-align: center; letter-spacing: 0.06em; line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">🔧</div>
+    <div>
+      <div class="header-title">AutoDiag AI</div>
+      <div class="header-sub">AI-POWERED VEHICLE DIAGNOSTICS</div>
+    </div>
+    <button id="resetBtn" onclick="resetAll()">RESET</button>
+  </div>
+
+  <div class="main">
+
+    <!-- API Key -->
+    <div>
+      <div class="section-label">00 — API Key</div>
+      <div class="api-key-box">
+        <label>ANTHROPIC API KEY</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-api03-..." autocomplete="off" />
+        <div class="api-key-note">⚠ Never commit your API key to a public repo. Use environment variables for production.</div>
+      </div>
+    </div>
+
+    <!-- Upload -->
+    <div>
+      <div class="section-label">01 — Upload Photos / Videos</div>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()"
+           ondragover="handleDragOver(event)" ondragleave="handleDragLeave()" ondrop="handleDrop(event)">
+        <input type="file" id="fileInput" multiple accept="image/*,video/*" onchange="handleFiles(this.files)" />
+        <div class="drop-icon">📷</div>
+        <div class="drop-text">Tap or drag to upload</div>
+        <div class="drop-sub">Images (JPG, PNG, WEBP) or Videos (MP4, MOV) — Videos are frame-extracted automatically</div>
+      </div>
+      <div class="preview-grid" id="previewGrid"></div>
+    </div>
+
+    <!-- Symptoms -->
+    <div>
+      <div class="section-label">02 — Describe Symptoms (Optional)</div>
+      <textarea id="symptoms" placeholder="e.g. Knocking sound at startup, smoke from bonnet, check engine light on, rough idle, vibration above 80km/h..."></textarea>
+    </div>
+
+    <!-- Analyze -->
+    <div>
+      <div class="section-label">03 — Run Diagnostics</div>
+      <button id="analyzeBtn" onclick="analyze()" disabled>▶ RUN DIAGNOSTIC</button>
+      <div class="hint" id="hint">Upload at least one photo or video to begin</div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-box" id="loadingBox">
+      <div class="spinner">⚙</div>
+      <div class="loading-text">AI IS ANALYZING YOUR VEHICLE...</div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-box" id="errorBox">
+      <div class="error-title">⚠ DIAGNOSTIC FAILED</div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-box" id="resultBox">
+      <div class="result-header">
+        <div class="result-dot" id="resultDot"></div>
+        <span class="result-label" id="resultLabel"></span>
+      </div>
+      <div class="result-content" id="resultContent"></div>
+    </div>
+
+    <div class="disclaimer">FOR INFORMATIONAL PURPOSES ONLY · ALWAYS CONSULT A QUALIFIED MECHANIC FOR REPAIRS</div>
+  </div>
+
+  <script>
+    let mediaItems = []; // { file, preview, type }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.add('drag-over');
+    }
+    function handleDragLeave() {
+      document.getElementById('dropzone').classList.remove('drag-over');
+    }
+    function handleDrop(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.remove('drag-over');
+      handleFiles(e.dataTransfer.files);
+    }
+
+    function handleFiles(fileList) {
+      const valid = Array.from(fileList).filter(
+        f => f.type.startsWith('image/') || f.type.startsWith('video/')
+      );
+      valid.forEach(file => {
+        const preview = URL.createObjectURL(file);
+        const type = file.type.startsWith('video/') ? 'video' : 'image';
+        mediaItems.push({ file, preview, type });
+      });
+      renderPreviews();
+      updateUI();
+    }
+
+    function removeItem(i) {
+      URL.revokeObjectURL(mediaItems[i].preview);
+      mediaItems.splice(i, 1);
+      renderPreviews();
+      updateUI();
+    }
+
+    function renderPreviews() {
+      const grid = document.getElementById('previewGrid');
+      grid.innerHTML = '';
+      mediaItems.forEach((m, i) => {
+        const card = document.createElement('div');
+        card.className = 'preview-card';
+        if (m.type === 'video') {
+          card.innerHTML = `
+            <video src="${m.preview}" muted playsinline style="width:100%;height:100%;object-fit:cover"></video>
+            <div class="vid-badge">VIDEO</div>`;
+        } else {
+          card.innerHTML = `<img src="${m.preview}" alt="upload" />`;
+        }
+        card.innerHTML += `<button class="remove-btn" onclick="removeItem(${i})">×</button>`;
+        grid.appendChild(card);
+      });
+    }
+
+    function updateUI() {
+      const hasMedia = mediaItems.length > 0;
+      const btn = document.getElementById('analyzeBtn');
+      const hint = document.getElementById('hint');
+      const resetBtn = document.getElementById('resetBtn');
+      btn.disabled = !hasMedia;
+      hint.style.display = hasMedia ? 'none' : 'block';
+      resetBtn.style.display = hasMedia ? 'block' : 'none';
+    }
+
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function extractFrames(file, count = 3) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        const url = URL.createObjectURL(file);
+        video.src = url;
+        video.muted = true;
+        video.playsInline = true;
+        video.onloadedmetadata = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const frames = [];
+          const duration = video.duration;
+          const times = Array.from({ length: count }, (_, i) =>
+            ((i + 0.5) / count) * Math.max(duration - 0.5, 0.1)
+          );
+          const captureNext = (idx) => {
+            if (idx >= times.length) { URL.revokeObjectURL(url); resolve(frames); return; }
+            video.currentTime = times[idx];
+            video.onseeked = () => {
+              canvas.width = video.videoWidth || 640;
+              canvas.height = video.videoHeight || 360;
+              ctx.drawImage(video, 0, 0);
+              frames.push(canvas.toDataURL('image/jpeg', 0.75).split(',')[1]);
+              captureNext(idx + 1);
+            };
+          };
+          captureNext(0);
+        };
+        video.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read video')); };
+      });
+    }
+
+    async function analyze() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (!apiKey) { showError('Please enter your Anthropic API key above.'); return; }
+      if (!mediaItems.length) return;
+
+      const btn = document.getElementById('analyzeBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ SCANNING...';
+      document.getElementById('loadingBox').style.display = 'block';
+      document.getElementById('errorBox').style.display = 'none';
+      document.getElementById('resultBox').style.display = 'none';
+
+      try {
+        const imageBlocks = [];
+        for (const item of mediaItems) {
+          if (item.type === 'image') {
+            const b64 = await toBase64(item.file);
+            imageBlocks.push({
+              type: 'image',
+              source: { type: 'base64', media_type: item.file.type || 'image/jpeg', data: b64 }
+            });
+          } else {
+            const frames = await extractFrames(item.file, 3);
+            frames.forEach(frame => imageBlocks.push({
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/jpeg', data: frame }
+            }));
+          }
+        }
+
+        if (!imageBlocks.length) throw new Error('No valid images to analyze.');
+
+        const symptoms = document.getElementById('symptoms').value.trim();
+        const prompt = `You are a senior automotive mechanic and diagnostic expert. Analyze the provided vehicle images carefully.
+
+${symptoms ? `Owner-reported symptoms: ${symptoms}\n` : ''}
+Provide a structured diagnostic report with these sections:
+
+🔍 VISUAL OBSERVATIONS
+What you can physically see in the images.
+
+🚨 IDENTIFIED ISSUES
+Specific problems detected, with brief explanations.
+
+⚠️ SEVERITY RATINGS
+For each issue: Critical (stop driving) / Moderate (fix soon) / Minor (monitor).
+
+🔧 RECOMMENDED REPAIRS
+Specific actions to take, in priority order.
+
+💬 NOTES
+Any safety warnings, rough cost ranges, or maintenance tips.
+
+Be honest and specific. If something cannot be determined from visuals alone, say so clearly.`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-opus-4-5',
+            max_tokens: 1024,
+            messages: [{
+              role: 'user',
+              content: [...imageBlocks, { type: 'text', text: prompt }]
+            }]
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const text = (data.content || []).map(b => b.text || '').join('\n').trim();
+        if (!text) throw new Error('Empty response from AI.');
+        showResult(text);
+
+      } catch (e) {
+        showError(e.message || 'Unknown error. Please try again.');
+      } finally {
+        document.getElementById('loadingBox').style.display = 'none';
+        btn.disabled = false;
+        btn.textContent = '▶ RUN DIAGNOSTIC';
+        updateUI();
+      }
+    }
+
+    function showResult(text) {
+      const lower = text.toLowerCase();
+      const isCritical = lower.includes('critical');
+      const isModerate = lower.includes('moderate') || lower.includes('attention');
+      const color = isCritical ? 'var(--red)' : isModerate ? 'var(--yellow)' : 'var(--green)';
+      const label = isCritical ? '⚠ CRITICAL ISSUES FOUND' : isModerate ? '◆ MODERATE ISSUES FOUND' : '✓ MINOR / NO MAJOR ISSUES';
+
+      const dot = document.getElementById('resultDot');
+      dot.style.background = color;
+      dot.style.boxShadow = `0 0 8px ${color}`;
+      document.getElementById('resultLabel').style.color = color;
+      document.getElementById('resultLabel').textContent = label;
+      document.getElementById('resultContent').textContent = text;
+      document.getElementById('resultBox').style.display = 'block';
+    }
+
+    function showError(msg) {
+      document.getElementById('errorMsg').textContent = msg;
+      document.getElementById('errorBox').style.display = 'block';
+    }
+
+    function resetAll() {
+      mediaItems.forEach(m => URL.revokeObjectURL(m.preview));
+      mediaItems = [];
+      document.getElementById('previewGrid').innerHTML = '';
+      document.getElementById('symptoms').value = '';
+      document.getElementById('resultBox').style.display = 'none';
+      document.getElementById('errorBox').style.display = 'none';
+      document.getElementById('loadingBox').style.display = 'none';
+      document.getElementById('resetBtn').style.display = 'none';
+      document.getElementById('hint').style.display = 'block';
+      document.getElementById('analyzeBtn').disabled = true;
+      document.getElementById('analyzeBtn').textContent = '▶ RUN DIAGNOSTIC';
+    }
+  </script>
+</body>
+</html>
